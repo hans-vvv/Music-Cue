@@ -1,10 +1,11 @@
+from openpyxl import Workbook, worksheet
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font
 
-from dataclasses import make_dataclass
+from dataclasses import make_dataclass, dataclass
 
 
-def xlref(row, column, zero_indexed=True):
+def xlref(row: int, column: int, zero_indexed: bool = True) -> str:
     """
     openpyxl helper to generate Excel cell references.
 
@@ -23,7 +24,7 @@ def xlref(row, column, zero_indexed=True):
     return get_column_letter(column) + str(row)
 
 
-def custom_layout_sheet(sheet):
+def custom_layout_sheet(sheet: worksheet) -> None:
     """
     Openpyxl helper to apply a custom layout to a worksheet.
 
@@ -50,7 +51,7 @@ def custom_layout_sheet(sheet):
         cell.font = Font(bold=True)
 
 
-def read_excel_tab(wb, sheet_name, fields):
+def read_excel_tab(wb: Workbook, sheet_name: str, fields: list[tuple[str, str]]) -> list[dataclass]:
 
     """
     Reads data from an Excel sheet and returns a list of data class objects.

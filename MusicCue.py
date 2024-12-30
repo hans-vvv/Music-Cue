@@ -1,7 +1,11 @@
 import os
 import re
+import inspect
+import logging
 from datetime import timedelta
+from typing import DefaultDict
 from itertools import zip_longest
+from dataclasses import dataclass
 from collections import defaultdict
 
 import openpyxl
@@ -34,12 +38,13 @@ class MusicCue:
     FILE_TYPES = ['mp3', 'm4a', 'wav', 'mov', 'mp4']
 
     def __init__(self):
+        self.logger = logging.getLogger(self.__class__.__name__)
 
         self.wb = None
         self.excel_filename = None
         self.project_root_dir = None
 
-    def read_db_sheet(self):
+    def read_db_sheet(self) -> list[dataclass]:
         """
         Returns DB sheet as list of data class objects
         """
@@ -49,7 +54,7 @@ class MusicCue:
                   ]
         return read_excel_tab(self.wb, self.DB_SHEET_NAME, fields)
 
-    def read_source_sheet(self):
+    def read_source_sheet(self) -> list[dataclass]:
         """
         Returns original Excel data source as list of dataclass objects
         Sheet must be cleaned before running the APP. This means that
@@ -60,7 +65,7 @@ class MusicCue:
         raw_data = read_excel_tab(self.wb, self.SOURCE_SHEET_NAME, fields)
         return [row for row in raw_data if row.raw_clip_name is not None]
 
-    def get_duration_data_per_episode_per_clip(self):
+    def get_duration_data_per_episode_per_clip(self) -> DefaultDict[str, DefaultDict[str, timedelta]]:
         """
         Returns dict with duration data per Episode per clip.
         If clip is used more than 1 time in Episode then
@@ -81,7 +86,7 @@ class MusicCue:
 
         return duration_data
 
-    def update_artist_title_info(self, clip_name, artist, title):
+    def update_artist_title_info(self, clip_name: str, artist: str, title: str) -> None:
         """
         For a given clip name, artist and title entries in the DB sheet are updated.
         """
@@ -96,7 +101,7 @@ class MusicCue:
         self.create_episode_tabs()
         self.excel_save()
 
-    def create_episode_tabs(self):
+    def create_episode_tabs(self) -> None:
         """
         Per Episode a report is produced which shows how long clips have been used
         and which artist and title belongs to the clips.
@@ -132,7 +137,7 @@ class MusicCue:
             custom_layout_sheet(sheet)
         self.excel_save()
 
-    def create_or_update_db_sheet(self, update=False):
+    def create_or_update_db_sheet(self, update: bool = False) -> None:
         """
         Creates or updates dB sheet given the original data sheet. This sheet is used as
         dB table for the App.
@@ -185,7 +190,7 @@ class MusicCue:
         custom_layout_sheet(sheet)
         self.excel_save()
 
-    def create_clip_usage_per_episode_sheet(self):
+    def create_clip_usage_per_episode_sheet(self) -> None:
         """
         Generates a sheet which provides information what clip is used in what Episode
         """
@@ -219,40 +224,45 @@ class MusicCue:
         custom_layout_sheet(sheet)
         self.excel_save()
 
-    def split_mp4_file(self, episode_name):
+    def split_mp4_file(self, episode_name: str) -> None:
         """
         Given the original MP4 file of an episode, this file can be split into
         separate files given the start and end time of a given event.
         """
-        event_data = {}
-        for row in self.read_source_sheet():
-            if row.episode_name != episode_name or row.event is None:
-                continue
-            event_data[row.event] = row.start, row.end
+        try:  # Log here as this method is run in a Thread in the GUI.
 
-        os.chdir(self.project_root_dir + '/' + episode_name)
+            event_data = {}
+            for row in self.read_source_sheet():
+                if row.episode_name != episode_name or row.event is None:
+                    continue
+                event_data[row.event] = row.start, row.end
 
-        # Create object to create audio fragments
-        audio_source = AudioSegment.from_file("Episode.mp4", "mp4")
+            os.chdir(self.project_root_dir + '/' + episode_name)
 
-        for event in event_data:
+            # Create object to create audio fragments
+            audio_source = AudioSegment.from_file("Episode.mp4", "mp4")
 
-            raw_start_time = event_data[event][0]
-            raw_end_time = event_data[event][1]
+            for event in event_data:
 
-            # strip irrelevant episode index from time
-            raw_start_time = ':'.join(raw_start_time.split(':')[1::])
-            raw_end_time = ':'.join(raw_end_time.split(':')[1::])
+                raw_start_time = event_data[event][0]
+                raw_end_time = event_data[event][1]
 
-            start_time = self.convert_time_to_ms(raw_start_time)
-            end_time = self.convert_time_to_ms(raw_end_time)
+                # strip irrelevant episode index from time
+                raw_start_time = ':'.join(raw_start_time.split(':')[1::])
+                raw_end_time = ':'.join(raw_end_time.split(':')[1::])
 
-            cur_song = audio_source[start_time:end_time]
-            cur_song.export(f'Event{event}.mp4', format='mp4')
+                start_time = self.convert_time_to_ms(raw_start_time)
+                end_time = self.convert_time_to_ms(raw_end_time)
 
-        os.chdir(self.ROOT_DIR)
+                cur_song = audio_source[start_time:end_time]
+                cur_song.export(f'Event{event}.mp4', format='mp4')
 
-    def get_clip_name_from_raw_clip_name(self, raw_clip_name):
+            os.chdir(self.ROOT_DIR)
+
+        except Exception as e:
+            self.log_error(e)
+
+    def get_clip_name_from_raw_clip_name(self, raw_clip_name: str) -> str:
         """
         Helper function which strips the file format (.mp3, mp4, etc.) from a "raw" clip name.
         """
@@ -268,7 +278,7 @@ class MusicCue:
         else:
             return clip_name
 
-    def get_clip_name_from_event(self, event):
+    def get_clip_name_from_event(self, event: str) -> str:
         """
         Returns clip name from given event.
         """
@@ -277,33 +287,33 @@ class MusicCue:
                 return row.clip_name
 
     @staticmethod
-    def convert_time_to_ms(time):
+    def convert_time_to_ms(time: str) -> int:
         """
         Returns time in milliseconds given time string
         """
         minutes, seconds, frames = time.split(':')
         return round(1000*(int(frames)/25) + 1000*int(seconds) + 60000*int(minutes))
 
-    def get_episode_names(self):
+    def get_episode_names(self) -> list[str]:
         """
         Returns list of Episode names
         """
         return sorted(list({row.episode_name for row in self.read_db_sheet()}))
 
-    def get_events(self, episode_name):
+    def get_events(self, episode_name: str) -> list[str]:
         """
         Returns list of Events given an Episode name
         """
         return [row.event for row in self.read_db_sheet() if row.episode_name == episode_name]
 
     @staticmethod
-    def get_episode_index(episode_name):
+    def get_episode_index(episode_name: str) -> list[str]:
         """
         Returns Episode index (eg. E01, E02, etc.) given the Episode name
         """
         return re.match(r'(E\d+).*', episode_name).group(1)
 
-    def get_artist_title_from_clip_name_cache(self):
+    def get_artist_title_from_clip_name_cache(self) -> dict[str, tuple[str, str]]:
         """
         Returns artist and title information per clip name if present in dB sheet
         """
@@ -313,17 +323,21 @@ class MusicCue:
             cache[row.clip_name] = row.artist, row.title
         return cache
 
-    def open_excel_document(self, excel_filename):
+    def open_excel_document(self, excel_filename: str) -> None:
         """
         Opens Excel document given the absolute filename
         """
         self.wb = openpyxl.load_workbook(excel_filename)
 
-    def excel_save(self):
+    def excel_save(self) -> None:
         """
         Saves Excel file
         """
         self.wb.save(self.excel_filename)
+
+    def log_error(self, exception: Exception) -> None:
+        method_name = inspect.currentframe().f_back.f_code.co_name
+        self.logger.error(f"Unexpected Error in method {method_name}: {exception}")
 
 
 def main():
