@@ -12,8 +12,6 @@ from music_cue.utils import xlref, custom_layout_sheet, read_excel_tab
 
 from music_cue.base_logger import get_logger
 
-from pydub import AudioSegment
-
 
 class SheetExistsException(Exception):
     pass
@@ -234,6 +232,8 @@ class DataHandler:
         separate files given the start and end time of a given event.
         """
         try:  # Log here as this method is run in a Thread in the GUI.
+            from pydub import AudioSegment
+
             event_data = {}
             for row in self.read_source_sheet():
                 if row.episode_name != episode_name or row.event is None:
@@ -260,10 +260,10 @@ class DataHandler:
                 cur_song = audio_source[start_time:end_time]
                 cur_song.export(f'Event{event}.mp4', format='mp4')
 
-            os.chdir(self.ROOT_DIR)
-
         except Exception as e:
             self.log_error(e)
+        finally:
+            os.chdir(self.ROOT_DIR)
 
     def get_clip_name_from_raw_clip_name(self, raw_clip_name: str) -> str:
         """
