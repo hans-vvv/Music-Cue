@@ -47,7 +47,7 @@ class MusicCueGui(ttk.Frame):
             try:
                 self.widgets['episode_cb']['values'] = self.data_handler.get_episode_names()
             except TypeError:
-                Messagebox.ok('Error: First select Excel file', alert=True)
+                Messagebox.show_error('Error: First select Excel file', alert=True)
 
     def create_general_tab(self) -> None:
         """
@@ -210,7 +210,7 @@ class MusicCueGui(ttk.Frame):
             self.clear_treeview(self.widgets['episode_result_view'])
             episode_name = self.widgets['episode_cb'].get()
             if not episode_name:
-                Messagebox.ok('Error: First select the episode', alert=True)
+                Messagebox.show_error('Error: First select the episode', alert=True)
             # Populate event combobox list.
             self.widgets['event_cb']['values'] = self.data_handler.get_events_per_episode_name(episode_name)
             for row in self.data_handler.read_db_sheet():
@@ -237,7 +237,7 @@ class MusicCueGui(ttk.Frame):
             for episode_name in self.data_handler.get_episode_names():
                 os.makedirs(episode_name, exist_ok=True)
         except TypeError:
-            Messagebox.ok('Error: First select Excel file', alert=True)
+            Messagebox.show_error('Error: First select Excel file', alert=True)
         except Exception as e:
             self.log_error(e)
         finally:
@@ -263,7 +263,7 @@ class MusicCueGui(ttk.Frame):
         """
         try:
             if not self.widgets['event_cb'].get():
-                Messagebox.ok('Error: First select the Event', alert=True)
+                Messagebox.show_error('Error: First select the Event', alert=True)
                 return
             self.widgets['artist_title_popup'] = ttk.Toplevel(size=(300, 200),)
             self.widgets['artist_title_popup'].title("Enter Artist and Title info")
@@ -295,7 +295,7 @@ class MusicCueGui(ttk.Frame):
             )
             self.widgets['artist_title_popup'].destroy()
         except PermissionError:
-            Messagebox.ok('Error: Close the sheet first', alert=True)
+            Messagebox.show_error('Error: Close the sheet first', alert=True)
         except Exception as e:
             self.log_error(e)
 
@@ -312,9 +312,9 @@ class MusicCueGui(ttk.Frame):
             hdr = ttk.Label(master=self.widgets['excel_select_lf_header'], text=hdr_txt, width=150)
             hdr.pack(side=LEFT, pady=5, padx=10)
         except InvalidFileException:
-            Messagebox.ok('Error: Invalid File type or None selected!', alert=True)
+            Messagebox.show_error('Error: Invalid File type or None selected!', alert=True)
         except TypeError:
-            Messagebox.ok('Error: First select Excel file', alert=True)
+            Messagebox.show_error('Error: First select Excel file', alert=True)
         except Exception as e:
             self.log_error(e)
 
@@ -328,12 +328,9 @@ class MusicCueGui(ttk.Frame):
             self.data_handler.create_episode_tabs()
             Messagebox.ok('Additional sheets have been successfully created')
         except TypeError:
-            Messagebox.ok(
-                'Error: First Select Excel file',
-                alert=True
-            )
+            Messagebox.show_error('Error: First Select Excel file', alert=True)
         except SheetExistsException:
-            Messagebox.ok(
+            Messagebox.show_error(
                 'Error: Sheet already exists. Remove current dB sheet if you want to create a new one',
                 alert=True
             )
@@ -350,10 +347,9 @@ class MusicCueGui(ttk.Frame):
             self.data_handler.create_episode_tabs()
             Messagebox.ok('Sheets have been successfully updated')
         except TypeError:
-            Messagebox.ok(
-                'Error: First Select Excel file', alert=True)
+            Messagebox.show_error('Error: First Select Excel file', alert=True)
         except PermissionError:
-            Messagebox.ok('Error: Close the sheet first', alert=True)
+            Messagebox.show_error('Error: Close the sheet first', alert=True)
         except Exception as e:
             self.log_error(e)
 
@@ -389,4 +385,4 @@ class MusicCueGui(ttk.Frame):
         """
         method_name = inspect.currentframe().f_back.f_code.co_name
         logger.error(f"Unexpected Error in method {method_name}: {exception}")
-        Messagebox.ok(f'Error: An unexpected error occurred in {method_name}', alert=True)
+        Messagebox.show_error(f'Error: An unexpected error occurred in {method_name}', alert=True)

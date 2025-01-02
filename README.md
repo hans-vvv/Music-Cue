@@ -32,12 +32,16 @@ The app is build using the Python ttkbootstrap library. The GUI uses two tabs.
 - The Update button can be used if additional Episodes have been added to the "Muziek" source sheet.
 - The "Create or Update" button creates per Episode a new folder. In these folders music files can be stored.
 
+![image info](./media/general_tab.png)
+
 ## Episode GUI tab
 
 - First you need to select an episode using the drop-down menu.
 - Using the "Get" button, the administered data per event is presented. You can move the columns of the data to ensure that clip names fits the space in the screen.
 - When you select a particular event using the drop-down menu and press the "Edit" button, you can administer the Artist and Title information
 - When you place an MP4 formatted music file named "Episode.mp4" in a sub-folder of the program folder and press the "Split" button, the fragments of each event are made available for playback purposes.
+
+![image info](./media/episode_tab.png)
 
 ## Installation
 
