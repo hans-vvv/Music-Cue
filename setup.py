@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='music-cue',
-      version='0.1.1',
+      version='0.1.3',
       description='A data entry application',
       url='https://github.com/hans-vvv/Music-Cue',
       author='Hans Verkerk',

@@ -10,7 +10,7 @@ from collections import defaultdict
 import openpyxl
 from music_cue.utils import xlref, custom_layout_sheet, read_excel_tab
 
-from music_cue.base_logger import get_logger
+from music_cue.base_logger import logger
 
 
 class SheetExistsException(Exception):
@@ -41,7 +41,6 @@ class DataHandler:
         self.wb = None
         self.excel_filename = None
         self.project_root_dir = None
-        self.logger = None
 
     def read_db_sheet(self) -> list[dataclass]:
         """
@@ -341,7 +340,6 @@ class DataHandler:
     @staticmethod
     def log_error(exception: Exception) -> None:
         method_name = inspect.currentframe().f_back.f_code.co_name
-        logger = get_logger()
         logger.error(f"Unexpected Error in method {method_name}: {exception}")
 
 

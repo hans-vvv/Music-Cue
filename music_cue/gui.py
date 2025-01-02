@@ -11,7 +11,7 @@ from ttkbootstrap.dialogs.dialogs import Messagebox
 
 from openpyxl.utils.exceptions import InvalidFileException
 
-from music_cue.base_logger import set_logger, get_logger
+from music_cue.base_logger import logger
 from music_cue.data_handler import DataHandler, SheetExistsException
 
 
@@ -27,7 +27,6 @@ class MusicCueGui(ttk.Frame):
         label.pack()
         
         self.widgets = {}
-        self.logger = None
 
         self.data_handler = DataHandler()
 
@@ -209,11 +208,11 @@ class MusicCueGui(ttk.Frame):
         """
         try:
             self.clear_treeview(self.widgets['episode_result_view'])
-
             episode_name = self.widgets['episode_cb'].get()
+            if not episode_name:
+                Messagebox.ok('Error: First select the episode', alert=True)
             # Populate event combobox list.
-            self.widgets['event_cb']['values'] = \
-                self.data_handler.get_events_per_episode_name(self.widgets['episode_cb'].get())
+            self.widgets['event_cb']['values'] = self.data_handler.get_events_per_episode_name(episode_name)
             for row in self.data_handler.read_db_sheet():
                 if row.episode_name != episode_name:
                     continue
@@ -263,6 +262,9 @@ class MusicCueGui(ttk.Frame):
         Input widget to store artist and title information.
         """
         try:
+            if not self.widgets['event_cb'].get():
+                Messagebox.ok('Error: First select the Event', alert=True)
+                return
             self.widgets['artist_title_popup'] = ttk.Toplevel(size=(300, 200),)
             self.widgets['artist_title_popup'].title("Enter Artist and Title info")
 
@@ -292,6 +294,8 @@ class MusicCueGui(ttk.Frame):
                 clip_name, self.widgets['artist_entry'].get(), self.widgets['title_entry'].get()
             )
             self.widgets['artist_title_popup'].destroy()
+        except PermissionError:
+            Messagebox.ok('Error: Close the sheet first', alert=True)
         except Exception as e:
             self.log_error(e)
 
@@ -300,14 +304,9 @@ class MusicCueGui(ttk.Frame):
         Callback after opening Excel file.
         """
         self.data_handler.excel_filename = askopenfilename(title="Select Excel file")
-        self.data_handler.project_root_dir = self.data_handler.excel_filename.rsplit('/', 1)[0]
-        log_filename = self.data_handler.project_root_dir + '/error-log.txt'
         try:
             self.data_handler.open_excel_document(self.data_handler.excel_filename)
-
-            set_logger(log_filename)
-            self.logger = get_logger()
-
+            self.data_handler.project_root_dir = self.data_handler.excel_filename.rsplit('/', 1)[0]
             Messagebox.ok('File has been successfully selected')
             hdr_txt = f'Excel file {self.data_handler.excel_filename} has been selected'
             hdr = ttk.Label(master=self.widgets['excel_select_lf_header'], text=hdr_txt, width=150)
@@ -317,8 +316,6 @@ class MusicCueGui(ttk.Frame):
         except TypeError:
             Messagebox.ok('Error: First select Excel file', alert=True)
         except Exception as e:
-            set_logger(log_filename)
-            self.logger = get_logger()
             self.log_error(e)
 
     def create_additional_sheets(self) -> None:
@@ -354,9 +351,9 @@ class MusicCueGui(ttk.Frame):
             Messagebox.ok('Sheets have been successfully updated')
         except TypeError:
             Messagebox.ok(
-                'Error: First Select Excel file',
-                alert=True
-            )
+                'Error: First Select Excel file', alert=True)
+        except PermissionError:
+            Messagebox.ok('Error: Close the sheet first', alert=True)
         except Exception as e:
             self.log_error(e)
 
@@ -385,10 +382,11 @@ class MusicCueGui(ttk.Frame):
         except Exception as e:
             self.log_error(e)
 
-    def log_error(self, exception: Exception) -> None:
+    @staticmethod
+    def log_error(exception: Exception) -> None:
         """
         Logs application errors
         """
         method_name = inspect.currentframe().f_back.f_code.co_name
-        self.logger.error(f"Unexpected Error in method {method_name}: {exception}")
+        logger.error(f"Unexpected Error in method {method_name}: {exception}")
         Messagebox.ok(f'Error: An unexpected error occurred in {method_name}', alert=True)
