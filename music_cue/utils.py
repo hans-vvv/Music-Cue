@@ -1,8 +1,9 @@
-from openpyxl import Workbook, worksheet
-from openpyxl.utils import get_column_letter
-from openpyxl.styles import Font
-
+import threading
 from dataclasses import make_dataclass, dataclass
+
+from openpyxl.utils import get_column_letter
+from openpyxl import Workbook, worksheet
+from openpyxl.styles import Font
 
 
 def xlref(row: int, column: int, zero_indexed: bool = True) -> str:
@@ -65,23 +66,47 @@ def read_excel_tab(wb: Workbook, sheet_name: str, fields: list[tuple[str, str]])
 
     Returns:
         list: A list of data class objects containing the extracted data.
+    Raises:
+        Exception: If any type of error occurs during Excel data reading.
     """
-    sheet = wb[sheet_name]
+    try:
+        sheet = wb[sheet_name]
 
-    col_name_to_col_index = {}
-    for index, column in enumerate(sheet.iter_cols(1, sheet.max_column)):
-        if column[0].value:
-            col_name_to_col_index[column[0].value.strip()] = index
+        col_name_to_col_index = {}
+        for index, column in enumerate(sheet.iter_cols(1, sheet.max_column)):
+            if column[0].value:
+                col_name_to_col_index[column[0].value.strip()] = index
 
-    header_names = [element[0] for element in fields]
-    attr_names = [element[1] for element in fields]
+        header_names = [element[0] for element in fields]
+        attr_names = [element[1] for element in fields]
 
-    data_class = make_dataclass('DataClass', attr_names)
-    data = []
-    for row in sheet.iter_rows(min_row=2):  # Skip the header row
-        table_row = [str(cell.value).strip() if cell.value is not None else None
-                     for cell in row]
-        row_data = [table_row[col_name_to_col_index[header_name]] for header_name in header_names]
-        if row_data:  # Skip empty rows
-            data.append(data_class(*row_data))
-    return data
+        data_class = make_dataclass('DataClass', attr_names)
+        data = []
+        for row in sheet.iter_rows(min_row=2):  # Skip the header row
+            table_row = [str(cell.value).strip() if cell.value is not None else None
+                         for cell in row]
+            row_data = [table_row[col_name_to_col_index[header_name]] for header_name in header_names]
+            if row_data:  # Skip empty rows
+                data.append(data_class(*row_data))
+        return data
+    except Exception:
+        raise
+
+
+class PropagateExceptionThread(threading.Thread):
+
+    """
+    Helper to propagate exceptions from with a thread to the caller environment
+    """
+    def __init__(self, group=None, target=None, args=(), kwargs=None, *, daemon=None, exception_queue=None):
+        if kwargs is None:
+            kwargs = {}
+        super().__init__(group=group, target=target, args=args, kwargs=kwargs, daemon=daemon)
+        self.exception_queue = exception_queue
+
+    def run(self):
+        try:
+            super().run()
+        except Exception as e:
+            if self.exception_queue:
+                self.exception_queue.put(e)

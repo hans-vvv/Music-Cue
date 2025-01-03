@@ -1,6 +1,5 @@
 import os
 import re
-import inspect
 from datetime import timedelta
 from typing import DefaultDict
 from itertools import zip_longest
@@ -9,8 +8,6 @@ from collections import defaultdict
 
 import openpyxl
 from music_cue.utils import xlref, custom_layout_sheet, read_excel_tab
-
-from music_cue.base_logger import logger
 
 
 class SheetExistsException(Exception):
@@ -230,7 +227,7 @@ class DataHandler:
         Given the original MP4 file of an episode, this file can be split into
         separate files given the start and end time of a given event.
         """
-        try:  # Log here as this method is run in a Thread in the GUI.
+        try:  # Raise, as this is run in the GUI in a thread
             from pydub import AudioSegment
 
             event_data = {}
@@ -259,8 +256,8 @@ class DataHandler:
                 cur_song = audio_source[start_time:end_time]
                 cur_song.export(f'Event{event}.mp4', format='mp4')
 
-        except Exception as e:
-            self.log_error(e)
+        except Exception:
+            raise
         finally:
             os.chdir(self.ROOT_DIR)
 
@@ -337,10 +334,10 @@ class DataHandler:
         """
         self.wb.save(self.excel_filename)
 
-    @staticmethod
-    def log_error(exception: Exception) -> None:
-        method_name = inspect.currentframe().f_back.f_code.co_name
-        logger.error(f"Unexpected Error in method {method_name}: {exception}")
+    # @staticmethod
+    # def log_error(exception: Exception) -> None:
+    #     method_name = inspect.currentframe().f_back.f_code.co_name
+    #     logger.error(f"An error occurred in method {method_name}: {exception}")
 
 
 def main():

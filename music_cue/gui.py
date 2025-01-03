@@ -1,7 +1,7 @@
 import os
+import queue
 import tkinter
 import inspect
-from threading import Thread
 from tkinter.filedialog import askopenfilename
 
 import ttkbootstrap as ttk
@@ -13,6 +13,7 @@ from openpyxl.utils.exceptions import InvalidFileException
 
 from music_cue.base_logger import logger
 from music_cue.data_handler import DataHandler, SheetExistsException
+from music_cue.utils import PropagateExceptionThread
 
 
 class MusicCueGui(ttk.Frame):
@@ -23,7 +24,7 @@ class MusicCueGui(ttk.Frame):
         super().__init__(master, padding=10, **kwargs)
         self.pack(fill=BOTH, expand=YES)
 
-        label = ttk.Label(self, text="Hello, MusicCue!")
+        label = ttk.Label(self, text="Hello, this is the MusicCue App!")
         label.pack()
         
         self.widgets = {}
@@ -47,7 +48,7 @@ class MusicCueGui(ttk.Frame):
             try:
                 self.widgets['episode_cb']['values'] = self.data_handler.get_episode_names()
             except TypeError:
-                Messagebox.show_error('Error: First select Excel file', alert=True)
+                Messagebox.show_error('Warning: First select Excel file', alert=True)
 
     def create_general_tab(self) -> None:
         """
@@ -210,7 +211,7 @@ class MusicCueGui(ttk.Frame):
             self.clear_treeview(self.widgets['episode_result_view'])
             episode_name = self.widgets['episode_cb'].get()
             if not episode_name:
-                Messagebox.show_error('Error: First select the episode', alert=True)
+                Messagebox.show_warning('Warning: First select the episode', alert=True)
             # Populate event combobox list.
             self.widgets['event_cb']['values'] = self.data_handler.get_events_per_episode_name(episode_name)
             for row in self.data_handler.read_db_sheet():
@@ -236,34 +237,50 @@ class MusicCueGui(ttk.Frame):
             os.chdir(self.data_handler.project_root_dir)
             for episode_name in self.data_handler.get_episode_names():
                 os.makedirs(episode_name, exist_ok=True)
+            Messagebox.ok('Folders have been successfully created or updated')
         except TypeError:
-            Messagebox.show_error('Error: First select Excel file', alert=True)
+            Messagebox.show_warning('Warning: First select Excel file', alert=True)
         except Exception as e:
             self.log_error(e)
         finally:
             os.chdir(self.data_handler.ROOT_DIR)
 
-    def split_audio_file(self) -> None:
+    def split_audio_file(self):
         """
         Split music files. A Thread is used to prevent the GUI from getting frozen.
+        Exception from the thread are propagated using a queue
         """
+        exception_queue = queue.Queue()
+
+        episode_name = self.widgets['episode_cb'].get()
+        th = PropagateExceptionThread(
+            target=self.data_handler.split_mp4_file,
+            args=(episode_name,),
+            daemon=True,
+            exception_queue=exception_queue,
+        )
+        th.start()
+        th.join()
         try:
-            episode_name = self.widgets['episode_cb'].get()
-            Thread(
-                target=self.data_handler.split_mp4_file,
-                args=(episode_name,),
-                daemon=True,
-            ).start()
-        except Exception as e:
-            self.log_error(e)
+            exception = exception_queue.get_nowait()
+            if isinstance(exception, ModuleNotFoundError):
+                Messagebox.show_warning('Warning: pydub library has not been installed', alert=True)
+            elif not self.widgets['episode_cb'].get():
+                Messagebox.show_warning('Warning: Please select the Episode', alert=True)
+            elif isinstance(exception, FileNotFoundError):
+                Messagebox.show_warning('Warning: No music file present in folder', alert=True)
+            else:
+                self.log_error(exception)
+        except queue.Empty:
+            Messagebox.ok('Episode music file has been successfully split into event fragments')
 
     def get_artist_title_with_popup(self) -> None:
         """
-        Input widget to store artist and title information.
+        Input entry widget to store artist and title information.
         """
         try:
             if not self.widgets['event_cb'].get():
-                Messagebox.show_error('Error: First select the Event', alert=True)
+                Messagebox.show_warning('Warning: First select the Event', alert=True)
                 return
             self.widgets['artist_title_popup'] = ttk.Toplevel(size=(300, 200),)
             self.widgets['artist_title_popup'].title("Enter Artist and Title info")
@@ -295,7 +312,7 @@ class MusicCueGui(ttk.Frame):
             )
             self.widgets['artist_title_popup'].destroy()
         except PermissionError:
-            Messagebox.show_error('Error: Close the sheet first', alert=True)
+            Messagebox.show_warning('Warning: Close the sheet first', alert=True)
         except Exception as e:
             self.log_error(e)
 
@@ -307,14 +324,17 @@ class MusicCueGui(ttk.Frame):
         try:
             self.data_handler.open_excel_document(self.data_handler.excel_filename)
             self.data_handler.project_root_dir = self.data_handler.excel_filename.rsplit('/', 1)[0]
+            # Test if sheets can be read without problems
+            self.data_handler.read_source_sheet()
+            self.data_handler.read_db_sheet()
             Messagebox.ok('File has been successfully selected')
             hdr_txt = f'Excel file {self.data_handler.excel_filename} has been selected'
             hdr = ttk.Label(master=self.widgets['excel_select_lf_header'], text=hdr_txt, width=150)
             hdr.pack(side=LEFT, pady=5, padx=10)
         except InvalidFileException:
-            Messagebox.show_error('Error: Invalid File type or None selected!', alert=True)
+            Messagebox.show_warning('Warning: Invalid File type or None selected!', alert=True)
         except TypeError:
-            Messagebox.show_error('Error: First select Excel file', alert=True)
+            Messagebox.show_warning('Warning: First select Excel file', alert=True)
         except Exception as e:
             self.log_error(e)
 
@@ -328,10 +348,10 @@ class MusicCueGui(ttk.Frame):
             self.data_handler.create_episode_tabs()
             Messagebox.ok('Additional sheets have been successfully created')
         except TypeError:
-            Messagebox.show_error('Error: First Select Excel file', alert=True)
+            Messagebox.show_warning('Warning: First Select Excel file', alert=True)
         except SheetExistsException:
-            Messagebox.show_error(
-                'Error: Sheet already exists. Remove current dB sheet if you want to create a new one',
+            Messagebox.show_warning(
+                'Warning: Sheet already exists. Remove current dB sheet if you want to create a new one',
                 alert=True
             )
         except Exception as e:
@@ -347,9 +367,9 @@ class MusicCueGui(ttk.Frame):
             self.data_handler.create_episode_tabs()
             Messagebox.ok('Sheets have been successfully updated')
         except TypeError:
-            Messagebox.show_error('Error: First Select Excel file', alert=True)
+            Messagebox.show_warning('Warning: First Select Excel file', alert=True)
         except PermissionError:
-            Messagebox.show_error('Error: Close the sheet first', alert=True)
+            Messagebox.show_warning('Warning: Close the sheet first', alert=True)
         except Exception as e:
             self.log_error(e)
 
@@ -384,5 +404,7 @@ class MusicCueGui(ttk.Frame):
         Logs application errors
         """
         method_name = inspect.currentframe().f_back.f_code.co_name
-        logger.error(f"Unexpected Error in method {method_name}: {exception}")
-        Messagebox.show_error(f'Error: An unexpected error occurred in {method_name}', alert=True)
+        logger.error(f"Unexpected FATAL Error occurred in method {method_name}: {exception}", exc_info=True)
+        Messagebox.show_error(
+            f'Error: An unexpected FATAL error occurred in method {method_name}', alert=True
+        )
