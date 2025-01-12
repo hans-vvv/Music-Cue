@@ -227,7 +227,7 @@ class DataHandler:
         Given the original MP4 file of an episode, this file can be split into
         separate files given the start and end time of a given event.
         """
-        try:  # Raise, as this is run in the GUI in a thread
+        try:
             from pydub import AudioSegment
 
             event_data = {}
@@ -257,7 +257,7 @@ class DataHandler:
                 cur_song.export(f'Event{event}.mp4', format='mp4')
 
         except Exception:
-            raise
+            raise  # Raise, as this is run in the GUI in a custom thread where the exception is handled.
         finally:
             os.chdir(self.ROOT_DIR)
 

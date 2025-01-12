@@ -48,7 +48,7 @@ class MusicCueGui(ttk.Frame):
             try:
                 self.widgets['episode_cb']['values'] = self.data_handler.get_episode_names()
             except TypeError:
-                Messagebox.show_error('Warning: First select Excel file', alert=True)
+                Messagebox.show_warning('Warning: First select Excel file', alert=True)
 
     def create_general_tab(self) -> None:
         """
@@ -326,7 +326,7 @@ class MusicCueGui(ttk.Frame):
             self.data_handler.project_root_dir = self.data_handler.excel_filename.rsplit('/', 1)[0]
             # Test if sheets can be read without problems
             self.data_handler.read_source_sheet()
-            self.data_handler.read_db_sheet()
+            # self.data_handler.read_db_sheet()
             Messagebox.ok('File has been successfully selected')
             hdr_txt = f'Excel file {self.data_handler.excel_filename} has been selected'
             hdr = ttk.Label(master=self.widgets['excel_select_lf_header'], text=hdr_txt, width=150)
