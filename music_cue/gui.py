@@ -355,11 +355,12 @@ class MusicCueGui(ttk.Frame):
                 alert=True
             )
         except Exception as e:
+            print(e)
             self.log_error(e)
 
     def update_additional_sheets(self) -> None:
         """
-        dG sheet is updated when new Episodes have been added to the source sheet
+        dB sheet is updated when new Episodes have been added to the source sheet
         """
         try:
             self.data_handler.create_or_update_db_sheet(update=True)

@@ -46,7 +46,7 @@ def custom_layout_sheet(sheet: worksheet) -> None:
         for cell in sheet[column_letter]:
             if cell.value:
                 max_width = max(max_width, len(str(cell.value)))
-        sheet.column_dimensions[column_letter].width = (max_width + 1) * 1.25
+        sheet.column_dimensions[column_letter].width = (max_width + 1) * 1.50
 
     for cell in sheet[1]:  # Make first row bold
         cell.font = Font(bold=True)
@@ -56,6 +56,7 @@ def read_excel_tab(wb: Workbook, sheet_name: str, fields: list[tuple[str, str]])
 
     """
     Reads data from an Excel sheet and returns a list of data class objects.
+    All cells are read as string.
 
     Args:
         wb (openpyxl.Workbook): The Excel workbook object.
@@ -93,10 +94,57 @@ def read_excel_tab(wb: Workbook, sheet_name: str, fields: list[tuple[str, str]])
         raise
 
 
+def read_original_excel_tab(wb: Workbook, sheet_name: str) -> list[dataclass]:
+
+    """
+    Reads data from an Excel sheet and returns a list of data class objects.
+    All cells are read as string.
+
+    Args:
+        wb (openpyxl.Workbook): The Excel workbook object.
+        sheet_name (str): The name of the sheet to read.
+
+    Returns:
+        list: A list of data class objects containing the extracted data.
+    Raises:
+        Exception: If any type of error occurs during Excel data reading.
+    """
+    try:
+        sheet = wb[sheet_name]
+
+        header_names = ['EVENT', 'CLIP NAME', 'START TIME', 'END TIME', 'DURATION', 'STATE']
+        attr_names = ['episode_index', 'event', 'raw_clip_name', 'start', 'end', 'duration', 'state']
+
+        col_name_to_col_index = {
+            'CHANNEL': 0, 'EVENT': 1, 'CLIP NAME': 2, 'START TIME': 3, 'END TIME': 4, 'DURATION': 5, 'STATE': 6
+        }
+        data_class = make_dataclass('DataClass', attr_names)
+        data = []
+        epi_index = 0
+        read = False
+        for row in sheet.iter_rows():
+            if row[0].value is None:
+                continue
+            if 'CHANNEL' in str(row[0].value):
+                epi_index += 1
+                read = True
+                continue
+            if isinstance(row[0].value, int) and read is True:
+                table_row = [str(cell.value).strip() if cell.value is not None else None for cell in row]
+                row_data = [table_row[col_name_to_col_index[header_name]] for header_name in header_names]
+                row_data.insert(0, str(epi_index))
+                data.append(data_class(*row_data))
+            else:
+                read = False
+        return data
+    except Exception:
+        raise
+
+
 class PropagateExceptionThread(threading.Thread):
 
     """
-    Helper to propagate exceptions from with a thread to the caller environment
+    Helper to propagate exceptions from within a thread to the caller environment using a queue
     """
     def __init__(self, group=None, target=None, args=(), kwargs=None, *, daemon=None, exception_queue=None):
         if kwargs is None:

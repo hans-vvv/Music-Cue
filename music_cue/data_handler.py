@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from collections import defaultdict
 
 import openpyxl
-from music_cue.utils import xlref, custom_layout_sheet, read_excel_tab
+from music_cue.utils import xlref, custom_layout_sheet, read_excel_tab, read_original_excel_tab
 
 
 class SheetExistsException(Exception):
@@ -28,16 +28,16 @@ class DataHandler:
     music file into separate music files for playback purposes.
     """
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-    SOURCE_SHEET_NAME = 'Muziek'
     GENERAL_ARTIST_TITLE_OVERVIEW_NAME = 'General Artist_Title overview'
     DB_SHEET_NAME = 'Database sheet'
-    FILE_TYPES = ['mp3', 'm4a', 'wav', 'mov', 'mp4']
+    FILE_TYPES = ['mp3', 'm4a', 'wav', 'mov', 'mp4', 'aif', 'aiff']
 
     def __init__(self):
 
         self.wb = None
         self.excel_filename = None
         self.project_root_dir = None
+        self.source_sheet_name = None
 
     def read_db_sheet(self) -> list[dataclass]:
         """
@@ -56,12 +56,7 @@ class DataHandler:
         Sheet must be cleaned before running the APP. This means that
         in the column "SESSION NAME" the session names must be populated.
         """
-        fields = [
-            ('SESSION NAME', 'episode_name'), ('EVENT', 'event'), ('CLIP NAME', 'raw_clip_name'),
-            ('START TIME', 'start'), ('END TIME', 'end'), ('DURATION', 'duration'), ('STATE', 'state')
-        ]
-        raw_data = read_excel_tab(self.wb, self.SOURCE_SHEET_NAME, fields)
-        return [row for row in raw_data if row.raw_clip_name is not None]
+        return read_original_excel_tab(self.wb, self.source_sheet_name)
 
     def get_duration_data_per_episode_per_clip(self) -> DefaultDict[str, DefaultDict[str, timedelta]]:
         """
@@ -108,7 +103,7 @@ class DataHandler:
 
         # Delete old tabs
         for sheet_name in self.wb.sheetnames:
-            if sheet_name == self.SOURCE_SHEET_NAME or sheet_name == self.GENERAL_ARTIST_TITLE_OVERVIEW_NAME \
+            if sheet_name == self.source_sheet_name or sheet_name == self.GENERAL_ARTIST_TITLE_OVERVIEW_NAME \
                     or sheet_name == self.DB_SHEET_NAME:
                 continue
             self.wb.remove(self.wb[sheet_name])
@@ -148,7 +143,7 @@ class DataHandler:
                 raise SheetExistsException("Database Sheet exists. Remove manually before new version can be created")
 
         for sheet_name in self.wb.sheetnames:
-            if sheet_name == self.SOURCE_SHEET_NAME:
+            if sheet_name == self.source_sheet_name:
                 continue
             self.wb.remove(self.wb[sheet_name])
 
@@ -165,9 +160,9 @@ class DataHandler:
 
         cache = self.get_artist_title_cache_from_clip_name()
         for index, (source_row, db_row) in enumerate(zip_longest(source_data, db_data)):
-
             clip_name = self.get_clip_name_from_raw_clip_name(source_row.raw_clip_name)
-            sheet[xlref(index + 1, 0)] = source_row.episode_name
+            episode_name = self.get_episode_name(source_row.episode_index)
+            sheet[xlref(index + 1, 0)] = episode_name
             sheet[xlref(index + 1, 1)] = source_row.event
             sheet[xlref(index + 1, 2)] = clip_name
             sheet[xlref(index + 1, 5)] = ':'.join(source_row.start.split(':')[1::])
@@ -199,11 +194,11 @@ class DataHandler:
         for row in self.read_source_sheet():
             clip_name = self.get_clip_name_from_raw_clip_name(row.raw_clip_name)
             clip_names.add(clip_name)
-            clip_name_in_episodes[clip_name].add(self.get_episode_index(row.episode_name))
-            episode_indices.add(self.get_episode_index(row.episode_name))
+            clip_name_in_episodes[clip_name].add(self.get_episode_name(row.episode_index))
+            episode_indices.add(self.get_episode_name(row.episode_index))
 
         for sheet_name in self.wb.sheetnames:
-            if sheet_name == self.SOURCE_SHEET_NAME or sheet_name == self.DB_SHEET_NAME:
+            if sheet_name == self.source_sheet_name or sheet_name == self.DB_SHEET_NAME:
                 continue
             self.wb.remove(self.wb[sheet_name])
 
@@ -272,7 +267,7 @@ class DataHandler:
             if m:
                 clip_name = m.group(0)
                 found = True
-        if not found and '.' in raw_clip_name:
+        if not found and '.' in raw_clip_name or clip_name is None:
             return f"Could not determine clip name from {raw_clip_name}."
         else:
             return clip_name
@@ -306,11 +301,11 @@ class DataHandler:
         return [row.event for row in self.read_db_sheet() if row.episode_name == episode_name]
 
     @staticmethod
-    def get_episode_index(episode_name: str) -> list[str]:
+    def get_episode_name(episode_index: str) -> str:
         """
-        Returns Episode index (eg. E01, E02, etc.) given the Episode name
+        Returns Episode name (eg. E01, E02, etc.) given the Episode index
         """
-        return re.match(r'(E\d+).*', episode_name).group(1)
+        return 'E' + episode_index if int(episode_index) > 9 else 'E0' + episode_index
 
     def get_artist_title_cache_from_clip_name(self) -> dict[str, tuple[str, str]]:
         """
@@ -327,6 +322,7 @@ class DataHandler:
         Opens Excel document given the absolute filename
         """
         self.wb = openpyxl.load_workbook(excel_filename)
+        self.source_sheet_name = self.wb.sheetnames[0]
 
     def excel_save(self) -> None:
         """
